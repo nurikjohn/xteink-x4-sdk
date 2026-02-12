@@ -40,6 +40,10 @@ class SDCardManager {
   bool openFileForWrite(const char* moduleName, const String& path, FsFile& file);
   bool removeDir(const char* path);
 
+  // Storage information methods
+  uint64_t getAvailableBytes();
+  uint64_t getTotalBytes();
+
  static SDCardManager& getInstance() { return instance; }
 
  private:

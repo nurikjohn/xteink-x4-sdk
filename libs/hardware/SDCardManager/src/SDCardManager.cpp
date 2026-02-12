@@ -275,3 +275,37 @@ bool SDCardManager::removeDir(const char* path) {
 
   return sd.rmdir(path);
 }
+
+uint64_t SDCardManager::getAvailableBytes() {
+  if (!initialized) {
+    if (Serial) Serial.printf("[%lu] [SD] not initialized; cannot get available bytes\n", millis());
+    return 0;
+  }
+
+  uint32_t freeClusters = sd.freeClusterCount();
+  if (freeClusters == 0xFFFFFFFF) {
+    // Error occurred
+    if (Serial) Serial.printf("[%lu] [SD] Failed to get free cluster count\n", millis());
+    return 0;
+  }
+
+  uint32_t bytesPerCluster = sd.bytesPerCluster();
+  return static_cast<uint64_t>(freeClusters) * bytesPerCluster;
+}
+
+uint64_t SDCardManager::getTotalBytes() {
+  if (!initialized) {
+    if (Serial) Serial.printf("[%lu] [SD] not initialized; cannot get total bytes\n", millis());
+    return 0;
+  }
+
+  uint32_t totalClusters = sd.clusterCount();
+  if (totalClusters == 0) {
+    // Error occurred
+    if (Serial) Serial.printf("[%lu] [SD] Failed to get cluster count\n", millis());
+    return 0;
+  }
+
+  uint32_t bytesPerCluster = sd.bytesPerCluster();
+  return static_cast<uint64_t>(totalClusters) * bytesPerCluster;
+}

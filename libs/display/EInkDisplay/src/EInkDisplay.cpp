@@ -525,7 +525,7 @@ void EInkDisplay::displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, 
   if (Serial) Serial.printf("[%lu]   Window display complete\n", millis());
 }
 
-void EInkDisplay::displayGrayBuffer(const uint8_t* bwData, const uint8_t* redData) {
+void EInkDisplay::displayGrayBuffer(const uint8_t* bwData, const uint8_t* redData, const unsigned char* lutData) {
   drawGrayscale = false;
   inGrayscaleMode = true;
 
@@ -561,7 +561,7 @@ void EInkDisplay::displayGrayBuffer(const uint8_t* bwData, const uint8_t* redDat
 
   // Step 2: Load the 4G grayscale LUT
   if (Serial) Serial.printf("[%lu]   Grayscale: loading 4G LUT...\n", millis());
-  setCustomLUT(true, lut_4G);
+  setCustomLUT(true, lutData ? lutData : lut_4G);
 
   // Step 3: Clear both RAMs to 0x00 (reference pre-fills with black)
   if (Serial) Serial.printf("[%lu]   Grayscale: clearing RAMs to 0x00...\n", millis());

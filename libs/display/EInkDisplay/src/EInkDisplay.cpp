@@ -605,6 +605,74 @@ void EInkDisplay::displayGrayBuffer(const uint8_t* bwData, const uint8_t* redDat
   if (Serial) Serial.printf("[%lu]   Grayscale: update complete\n", millis());
 }
 
+void EInkDisplay::displayGrayBufferFast(const uint8_t* bwData, const uint8_t* redData) {
+  inGrayscaleMode = true;
+  
+  unsigned long startTime = millis();
+  if (Serial) Serial.printf("[%lu] Grayscale FAST: Starting optimized refresh...\n", startTime);
+
+  // Step 1: Software reset + display init with grayscale settings
+  if (Serial) Serial.printf("[%lu]   Init: SWRESET + display config...\n", millis());
+  sendCommand(CMD_SOFT_RESET);
+  delay(10);
+  waitWhileBusy(" grayscale SWRESET");
+
+  sendCommand(CMD_BOOSTER_SOFT_START);
+  sendData(0xAE);
+  sendData(0xC7);
+  sendData(0xC3);
+  sendData(0xC0);
+  sendData(0x80);
+
+  sendCommand(CMD_DRIVER_OUTPUT_CONTROL);
+  sendData((DISPLAY_HEIGHT - 1) % 256);
+  sendData((DISPLAY_HEIGHT - 1) / 256);
+  sendData(0x02);
+
+  sendCommand(CMD_BORDER_WAVEFORM);
+  sendData(0x00);
+
+  sendCommand(CMD_TEMP_SENSOR_CONTROL);
+  sendData(0x80);
+
+  setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+
+  // Step 2: Load the 4G grayscale LUT
+  if (Serial) Serial.printf("[%lu]   Init: Loading 4G LUT...\n", millis());
+  setCustomLUT(true, lut_4G);
+
+  // Step 3: SKIP RAM CLEARING - write data directly!
+  // The display should handle this internally
+  if (Serial) Serial.printf("[%lu]   Optimization: Skipping RAM clear (testing)...\n", millis());
+
+  // Step 4: Write actual grayscale data — RED RAM first, then BW RAM
+  if (Serial) Serial.printf("[%lu]   Writing RED RAM...\n", millis());
+  setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+  writeRamBuffer(CMD_WRITE_RAM_RED, redData, BUFFER_SIZE);
+
+  if (Serial) Serial.printf("[%lu]   Writing BW RAM...\n", millis());
+  setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+  writeRamBuffer(CMD_WRITE_RAM_BW, bwData, BUFFER_SIZE);
+
+  // Step 5: Update display with 4G sequence
+  if (Serial) Serial.printf("[%lu]   Triggering 4G update (0xC7)...\n", millis());
+  sendCommand(CMD_DISPLAY_UPDATE_CTRL1);
+  sendData(0x00);
+  sendData(0x00);
+
+  sendCommand(CMD_DISPLAY_UPDATE_CTRL2);
+  sendData(0xC7);
+
+  sendCommand(CMD_MASTER_ACTIVATION);
+  waitWhileBusy(" grayscale 4G update");
+
+  isScreenOn = false;
+  customLutActive = false;
+
+  unsigned long endTime = millis();
+  if (Serial) Serial.printf("[%lu] Grayscale FAST: COMPLETE - Total time = %lu ms (saved ~1200ms by skipping RAM clear)\n", endTime, endTime - startTime);
+}
+
 void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScreen) {
   // Configure Display Update Control 1
   sendCommand(CMD_DISPLAY_UPDATE_CTRL1);

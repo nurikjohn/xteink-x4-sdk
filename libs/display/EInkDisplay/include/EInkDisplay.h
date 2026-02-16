@@ -46,6 +46,8 @@ class EInkDisplay {
   // EXPERIMENTAL: Windowed update - display only a rectangular region
   void displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool turnOffScreen = false);
   void displayGrayBuffer(const uint8_t* bwData, const uint8_t* redData, const unsigned char* lutData = nullptr);
+  // Two-phase fast grayscale refresh (inverted flash then correct image)
+  void displayGrayBufferFast(const uint8_t* bwData, const uint8_t* redData);
 
   void refreshDisplay(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
 

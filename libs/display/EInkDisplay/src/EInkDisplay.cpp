@@ -40,66 +40,36 @@
 // Power management
 #define CMD_DEEP_SLEEP 0x10  // Deep sleep
 
-// 4-level grayscale LUT — 2-group waveform (Waveshare-derived)
-// VS waveform encoding: 00=Hi-Z, 01=VSH1(+med), 10=VSL(-black), 11=VSH2(+strong white)
-// L-level selection: L0=(RED=0,BW=0), L1=(RED=0,BW=1), L2=(RED=1,BW=0), L3=(RED=1,BW=1)
-const unsigned char lut_4G[] PROGMEM = {
+// OG firmware absolute grayscale LUT — extracted from Xteink X4 flash dump.
+// Absolute waveforms: drives every pixel to correct gray level from ANY starting state.
+// No BW pre-render, no crosspoint encoding, no revert needed between pages.
+// Frame rate 0x44 with 60 total frames — ~4x faster than lut_4G (110 frames at 0x22).
+// Higher VCOM (0x50) compensates for faster frame rate with stronger drive.
+const unsigned char lut_og[] PROGMEM = {
     // VS waveforms (5 levels x 10 bytes)
-    //       G0    G1    G2-G9 (unused)
-    0x80, 0x4A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L0 -> white
-    0x0A, 0x68, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L1 -> light gray
+    0x00, 0x4A, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L0 -> white
+    0x80, 0x62, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L1 -> light gray
     0x88, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L2 -> dark gray
-    0xA8, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L3 -> black
+    0xA8, 0x44, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L3 -> black
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L4 (VCOM)
 
-    // TP/RP timing groups (10 groups x 5 bytes, only G0+G1 active)
-    0x0F, 0x20, 0x1E, 0x04, 0x00,  // G0: TP=15,32,30,4  RP=0
-    0x0D, 0x02, 0x06, 0x08, 0x00,  // G1: TP=13,2,6,8    RP=0
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G2: disabled
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G3: disabled
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G4
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G5
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G6
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G7
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G8
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G9
+    // TP/RP timing groups (3 active groups, 60 total frames)
+    0x09, 0x0C, 0x03, 0x03, 0x00,  // G0: 9+12+3+3 = 27 frames
+    0x0F, 0x03, 0x07, 0x03, 0x00,  // G1: 15+3+7+3 = 28 frames
+    0x03, 0x00, 0x02, 0x00, 0x00,  // G2: 3+0+2+0 = 5 frames
+    0x00, 0x00, 0x00, 0x00, 0x00,  // G3-G9: inactive
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
 
-    // Frame rate
-    0x22, 0x22, 0x22, 0x22, 0x22,
+    // Frame rate (0x44 = ~2x faster than 0x22)
+    0x44, 0x44, 0x44, 0x44, 0x44,
 
-    // Voltages (VGH, VSH1, VSH2, VSL, VCOM)
-    0x17, 0x41, 0xA8, 0x32, 0x30,
-
-    // Reserved
-    0x00, 0x00};
-
-// Revert LUT: drives all grayscale pixels back to clean BW state
-// Used after grayscale display to prepare for normal BW fast refresh
-const unsigned char lut_4G_revert[] PROGMEM = {
-    // VS waveforms — drive all non-white states back to white or black
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L0: no change
-    0x54, 0x54, 0x54, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L1: light grey → white
-    0xA8, 0xA8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L2: dark grey → black
-    0xFC, 0xFC, 0xFC, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L3: no change
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // L4 (VCOM)
-
-    // TP/RP timing groups
-    0x01, 0x01, 0x01, 0x01, 0x01,  // G0
-    0x01, 0x01, 0x01, 0x01, 0x01,  // G1
-    0x01, 0x01, 0x01, 0x01, 0x00,  // G2
-    0x01, 0x01, 0x01, 0x01, 0x00,  // G3
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G4
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G5
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G6
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G7
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G8
-    0x00, 0x00, 0x00, 0x00, 0x00,  // G9
-
-    // Frame rate
-    0x8F, 0x8F, 0x8F, 0x8F, 0x8F,
-
-    // Voltages (VGH, VSH1, VSH2, VSL, VCOM)
-    0x17, 0x41, 0xA8, 0x32, 0x30,
+    // Voltages (VGH, VSH1, VSH2, VSL, VCOM — higher VCOM for stronger drive)
+    0x17, 0x41, 0xA8, 0x32, 0x50,
 
     // Reserved
     0x00, 0x00};
@@ -371,9 +341,14 @@ void EInkDisplay::grayscaleRevert() {
 
   inGrayscaleMode = false;
 
-  // Re-init the display controller back to normal BW mode
-  // (grayscale mode did a SWRESET so we need to re-init)
+  // With the absolute OG LUT, no special revert waveform is needed.
+  // The next displayBuffer() will write BW data to RAM and do a normal refresh
+  // which drives all pixels to clean BW regardless of current grayscale state.
+  // We just need to reinit the controller to clear any stale LUT/voltage state
+  // from the grayscale 0xC7 sequence (which powers off analog after update).
+  if (Serial) Serial.printf("[%lu]   Grayscale revert: reinit controller...\n", millis());
   initDisplayController();
+  if (Serial) Serial.printf("[%lu]   Grayscale revert: complete\n", millis());
 }
 
 void EInkDisplay::copyGrayscaleLsbBuffers(const uint8_t* lsbBuffer) {
@@ -412,9 +387,9 @@ void EInkDisplay::displayBuffer(RefreshMode mode, const bool turnOffScreen) {
     mode = HALF_REFRESH;
   }
 
-  // If currently in grayscale mode, revert first to black/white
+  // If currently in grayscale mode, revert first to black/white.
+  // grayscaleRevert() internally sets inGrayscaleMode = false.
   if (inGrayscaleMode) {
-    inGrayscaleMode = false;
     grayscaleRevert();
   }
 
@@ -475,7 +450,6 @@ void EInkDisplay::displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, 
 
   // displayWindow is not supported while the rest of the screen has grayscale content, revert it
   if (inGrayscaleMode) {
-    inGrayscaleMode = false;
     grayscaleRevert();
   }
 
@@ -560,9 +534,9 @@ void EInkDisplay::displayGrayBuffer(const uint8_t* bwData, const uint8_t* redDat
 
   setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
-  // Step 2: Load the 4G grayscale LUT
-  if (Serial) Serial.printf("[%lu]   Grayscale: loading 4G LUT...\n", millis());
-  setCustomLUT(true, lutData ? lutData : lut_4G);
+  // Step 2: Load the grayscale LUT
+  if (Serial) Serial.printf("[%lu]   Grayscale: loading LUT...\n", millis());
+  setCustomLUT(true, lutData ? lutData : lut_og);
 
   // Step 3: Clear both RAMs to 0x00 (reference pre-fills with black)
   if (Serial) Serial.printf("[%lu]   Grayscale: clearing RAMs to 0x00...\n", millis());
@@ -576,7 +550,6 @@ void EInkDisplay::displayGrayBuffer(const uint8_t* bwData, const uint8_t* redDat
   }
 
   // Step 4: Write actual grayscale data — RED RAM first, then BW RAM
-  // (following reference write order: 0x26 before 0x24)
   if (Serial) Serial.printf("[%lu]   Grayscale: writing RED RAM...\n", millis());
   setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
   writeRamBuffer(CMD_WRITE_RAM_RED, redData, BUFFER_SIZE);
@@ -585,19 +558,17 @@ void EInkDisplay::displayGrayBuffer(const uint8_t* bwData, const uint8_t* redDat
   setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
   writeRamBuffer(CMD_WRITE_RAM_BW, bwData, BUFFER_SIZE);
 
-  // Step 5: Update display with 4G sequence
-  // CTRL1: 0x00 (RED normal), 0x00 (single chip)
-  // CTRL2: 0xC7 = CLOCK_ON | ANALOG_ON | DISPLAY_START | CLOCK_OFF | ...
-  if (Serial) Serial.printf("[%lu]   Grayscale: triggering 4G update (0xC7)...\n", millis());
+  // Step 5: Update display with grayscale sequence
+  if (Serial) Serial.printf("[%lu]   Grayscale: triggering update (0xC7)...\n", millis());
   sendCommand(CMD_DISPLAY_UPDATE_CTRL1);
   sendData(0x00);  // RED RAM normal (not bypassed)
   sendData(0x00);  // single chip
 
   sendCommand(CMD_DISPLAY_UPDATE_CTRL2);
-  sendData(0xC7);  // Full power cycle: clock on, analog on, display, clock off, analog off
+  sendData(0xC7);  // Full power cycle
 
   sendCommand(CMD_MASTER_ACTIVATION);
-  waitWhileBusy(" grayscale 4G update");
+  waitWhileBusy(" grayscale update");
 
   isScreenOn = false;  // 0xC7 turns power off after update
   customLutActive = false;
@@ -605,72 +576,33 @@ void EInkDisplay::displayGrayBuffer(const uint8_t* bwData, const uint8_t* redDat
   if (Serial) Serial.printf("[%lu]   Grayscale: update complete\n", millis());
 }
 
-void EInkDisplay::displayGrayBufferFast(const uint8_t* bwData, const uint8_t* redData) {
+void EInkDisplay::displayGrayBufferFastSimple() {
   inGrayscaleMode = true;
-  
+
+  // OG firmware approach: absolute lut_og + 0xC7 display update.
+  // Drives every pixel to correct gray level from ANY starting state.
+  // No BW pre-render, no crosspoint encoding, no revert needed.
+  // Caller must have written inverted LSB/MSB to BW/RED RAM.
   unsigned long startTime = millis();
-  if (Serial) Serial.printf("[%lu] Grayscale FAST: Starting optimized refresh...\n", startTime);
+  if (Serial) Serial.printf("[%lu] Grayscale OG: lut_og + 0xC7...\n", startTime);
 
-  // Step 1: Software reset + display init with grayscale settings
-  if (Serial) Serial.printf("[%lu]   Init: SWRESET + display config...\n", millis());
-  sendCommand(CMD_SOFT_RESET);
-  delay(10);
-  waitWhileBusy(" grayscale SWRESET");
+  setCustomLUT(true, lut_og);
 
-  sendCommand(CMD_BOOSTER_SOFT_START);
-  sendData(0xAE);
-  sendData(0xC7);
-  sendData(0xC3);
-  sendData(0xC0);
-  sendData(0x80);
-
-  sendCommand(CMD_DRIVER_OUTPUT_CONTROL);
-  sendData((DISPLAY_HEIGHT - 1) % 256);
-  sendData((DISPLAY_HEIGHT - 1) / 256);
-  sendData(0x02);
-
-  sendCommand(CMD_BORDER_WAVEFORM);
-  sendData(0x00);
-
-  sendCommand(CMD_TEMP_SENSOR_CONTROL);
-  sendData(0x80);
-
-  setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-
-  // Step 2: Load the 4G grayscale LUT
-  if (Serial) Serial.printf("[%lu]   Init: Loading 4G LUT...\n", millis());
-  setCustomLUT(true, lut_4G);
-
-  // Step 3: SKIP RAM CLEARING - write data directly!
-  // The display should handle this internally
-  if (Serial) Serial.printf("[%lu]   Optimization: Skipping RAM clear (testing)...\n", millis());
-
-  // Step 4: Write actual grayscale data — RED RAM first, then BW RAM
-  if (Serial) Serial.printf("[%lu]   Writing RED RAM...\n", millis());
-  setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-  writeRamBuffer(CMD_WRITE_RAM_RED, redData, BUFFER_SIZE);
-
-  if (Serial) Serial.printf("[%lu]   Writing BW RAM...\n", millis());
-  setRamArea(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-  writeRamBuffer(CMD_WRITE_RAM_BW, bwData, BUFFER_SIZE);
-
-  // Step 5: Update display with 4G sequence
-  if (Serial) Serial.printf("[%lu]   Triggering 4G update (0xC7)...\n", millis());
   sendCommand(CMD_DISPLAY_UPDATE_CTRL1);
-  sendData(0x00);
-  sendData(0x00);
+  sendData(0x00);  // RED RAM normal
+  sendData(0x00);  // single chip
 
   sendCommand(CMD_DISPLAY_UPDATE_CTRL2);
-  sendData(0xC7);
+  sendData(0xC7);  // Full power cycle
 
   sendCommand(CMD_MASTER_ACTIVATION);
-  waitWhileBusy(" grayscale 4G update");
+  waitWhileBusy(" grayscale OG");
 
   isScreenOn = false;
   customLutActive = false;
 
   unsigned long endTime = millis();
-  if (Serial) Serial.printf("[%lu] Grayscale FAST: COMPLETE - Total time = %lu ms (saved ~1200ms by skipping RAM clear)\n", endTime, endTime - startTime);
+  if (Serial) Serial.printf("[%lu] Grayscale OG: COMPLETE - %lu ms\n", endTime, endTime - startTime);
 }
 
 void EInkDisplay::refreshDisplay(const RefreshMode mode, const bool turnOffScreen) {

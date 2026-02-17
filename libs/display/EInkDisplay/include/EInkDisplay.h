@@ -46,8 +46,9 @@ class EInkDisplay {
   // EXPERIMENTAL: Windowed update - display only a rectangular region
   void displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool turnOffScreen = false);
   void displayGrayBuffer(const uint8_t* bwData, const uint8_t* redData, const unsigned char* lutData = nullptr);
-  // Two-phase fast grayscale refresh (inverted flash then correct image)
-  void displayGrayBufferFast(const uint8_t* bwData, const uint8_t* redData);
+  // Fast absolute grayscale refresh using OG firmware LUT + 0xC7.
+  // Caller must write inverted LSB/MSB to BW/RED RAM first.
+  void displayGrayBufferFastSimple();
 
   void refreshDisplay(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false);
 
@@ -67,6 +68,10 @@ class EInkDisplay {
 
   // Save the current framebuffer to a PBM file (desktop/test builds only)
   void saveFrameBufferAsPBM(const char* filename);
+
+  // Reset controller to clean state (SWRESET + re-init).
+  // Clears stale LUT, voltage, and temperature register state.
+  void initDisplayController();
 
  private:
   // Pin configuration
@@ -95,7 +100,6 @@ class EInkDisplay {
   void sendData(uint8_t data);
   void sendData(const uint8_t* data, uint16_t length);
   void waitWhileBusy(const char* comment = nullptr);
-  void initDisplayController();
 
   // Low-level display operations
   void setRamArea(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
